@@ -1,0 +1,520 @@
+:root {
+  --semantic-bg: #f7f4ee;
+  --semantic-foreground: #2f3437;
+  --semantic-muted: #6c7275;
+  --semantic-accent: #2d6a4f;
+  --semantic-highlight: #e8b44b;
+  --semantic-card: #ffffff;
+  --semantic-border: rgba(47, 52, 55, 0.12);
+}
+
+.semantic-page {
+  background: var(--semantic-bg);
+  min-height: calc(100vh - 96px);
+  padding: 48px 48px 72px;
+  color: var(--semantic-foreground);
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.semantic-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.semantic-page__breadcrumb {
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 12px;
+  color: var(--semantic-muted);
+  margin-bottom: 8px;
+}
+
+.semantic-page__header h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(36px, 4vw, 48px);
+  font-weight: 600;
+  margin: 0;
+}
+
+.semantic-page__help {
+  border: 1px solid var(--semantic-border);
+  background: var(--semantic-card);
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--semantic-foreground);
+}
+
+.semantic-page__tabs {
+  align-self: center;
+  display: flex;
+  background: rgba(45, 106, 79, 0.12);
+  border-radius: 999px;
+  padding: 6px;
+  gap: 6px;
+}
+
+.semantic-page__tab {
+  border: none;
+  background: transparent;
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--semantic-accent);
+}
+
+.semantic-page__tab--active {
+  background: var(--semantic-accent);
+  color: #ffffff;
+  box-shadow: 0 12px 24px -18px rgba(45, 106, 79, 0.6);
+}
+
+.semantic-page__tab--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.semantic-page__layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 32px;
+}
+
+.semantic-filters {
+  background: var(--semantic-card);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 28px 48px -40px rgba(45, 106, 79, 0.45);
+  position: sticky;
+  top: 120px;
+  align-self: flex-start;
+}
+
+.semantic-filters__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.semantic-filters__header h3 {
+  font-family: 'Playfair Display', serif;
+  margin: 0;
+  font-size: 20px;
+}
+
+.semantic-filters__header button {
+  background: none;
+  border: none;
+  color: var(--semantic-muted);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+.semantic-filters__section + .semantic-filters__section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--semantic-border);
+}
+
+.semantic-filters__section h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--semantic-muted);
+}
+
+.semantic-filters__section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.semantic-filters__section label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.semantic-filters__toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.semantic-filters__price-inputs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.semantic-filters__price-inputs input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--semantic-border);
+  padding: 10px 14px;
+  background: #fdfbf7;
+}
+
+.semantic-filters__separator {
+  color: var(--semantic-muted);
+}
+
+.semantic-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.semantic-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.semantic-toolbar__caption {
+  font-size: 14px;
+  color: var(--semantic-muted);
+}
+
+.semantic-toolbar__controls {
+  display: flex;
+  gap: 16px;
+}
+
+.semantic-toolbar__controls label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--semantic-muted);
+  gap: 6px;
+}
+
+.semantic-toolbar__controls select {
+  border: 1px solid var(--semantic-border);
+  border-radius: 16px;
+  padding: 8px 14px;
+  font-size: 14px;
+  background: var(--semantic-card);
+}
+
+.semantic-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.semantic-chip {
+  background: rgba(45, 106, 79, 0.12);
+  color: var(--semantic-accent);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.semantic-chip button {
+  border: none;
+  background: rgba(45, 106, 79, 0.16);
+  color: var(--semantic-accent);
+  border-radius: 999px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.semantic-error {
+  background: rgba(232, 180, 75, 0.12);
+  border: 1px solid rgba(232, 180, 75, 0.4);
+  border-radius: 16px;
+  padding: 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.semantic-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.semantic-load-more button {
+  padding: 12px 28px;
+  border-radius: 999px;
+  border: none;
+  background: var(--semantic-accent);
+  color: #ffffff;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  box-shadow: 0 18px 32px -24px rgba(45, 106, 79, 0.6);
+}
+
+.semantic-hero {
+  position: relative;
+  background: transparent;
+}
+
+.semantic-hero__search {
+  display: flex;
+  align-items: center;
+  background: var(--semantic-card);
+  border-radius: 48px;
+  padding: 20px 28px;
+  gap: 16px;
+  box-shadow: 0 32px 60px -44px rgba(45, 106, 79, 0.6);
+}
+
+.semantic-hero__icon {
+  font-size: 20px;
+}
+
+.semantic-hero__input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 18px;
+  background: transparent;
+}
+
+.semantic-hero__panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  background: var(--semantic-card);
+  border-radius: 32px;
+  padding: 28px;
+  box-shadow: 0 40px 80px -48px rgba(45, 106, 79, 0.55);
+  gap: 24px;
+  z-index: 5;
+}
+
+.semantic-hero__panel-left h4,
+.semantic-hero__panel-right h4 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--semantic-muted);
+  margin-bottom: 16px;
+}
+
+.semantic-hero__panel-left ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.semantic-hero__panel-left button {
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 15px;
+  color: var(--semantic-foreground);
+}
+
+.semantic-hero__panel-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.semantic-hero__trending-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.semantic-hero__trending-card {
+  background: rgba(45, 106, 79, 0.04);
+  border-radius: 20px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border: none;
+  text-align: left;
+}
+
+.semantic-hero__trending-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.semantic-hero__trending-placeholder {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 16px;
+  background: rgba(45, 106, 79, 0.1);
+}
+
+.semantic-hero__trending-card span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.semantic-results {
+  display: grid;
+  gap: 24px;
+}
+
+.semantic-results--grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.semantic-results--list {
+  grid-template-columns: 1fr;
+}
+
+.semantic-card {
+  background: var(--semantic-card);
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 32px 60px -44px rgba(45, 106, 79, 0.55);
+  transition: transform 220ms cubic-bezier(.16, 1, .3, 1), box-shadow 220ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.semantic-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 36px 72px -44px rgba(45, 106, 79, 0.65);
+}
+
+.semantic-card__media {
+  position: relative;
+  overflow: hidden;
+}
+
+.semantic-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.semantic-card__placeholder {
+  width: 100%;
+  padding-top: 75%;
+  background: rgba(45, 106, 79, 0.12);
+}
+
+.semantic-card__badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: var(--semantic-highlight);
+  color: var(--semantic-foreground);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.semantic-card__body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.semantic-card__body h3 {
+  margin: 0;
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+}
+
+.semantic-card__price {
+  font-weight: 700;
+  color: var(--semantic-accent);
+}
+
+.semantic-card__description {
+  margin: 0;
+  color: var(--semantic-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.semantic-card__tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.semantic-card__tag {
+  background: rgba(45, 106, 79, 0.08);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.semantic-card__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.semantic-card__actions button {
+  flex: 1;
+  border-radius: 999px;
+  border: 1px solid var(--semantic-accent);
+  background: transparent;
+  color: var(--semantic-accent);
+  padding: 10px 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.semantic-empty {
+  background: rgba(45, 106, 79, 0.06);
+  border-radius: 24px;
+  padding: 40px;
+  text-align: center;
+  display: grid;
+  gap: 16px;
+}
+
+@media (max-width: 1200px) {
+  .semantic-page__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .semantic-filters {
+    position: static;
+  }
+}
+
+@media (max-width: 900px) {
+  .semantic-hero__panel {
+    grid-template-columns: 1fr;
+  }
+
+  .semantic-hero__trending-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,748 @@
+import React, { useState, useEffect } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Plus, Trash2, Upload } from 'lucide-react';
+import { ProductCreateRequest, ProductResponse, ProductVariant, ProductImage, ProductPricing, ProductMediaType } from '../../types/api';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { useCategories } from '../../hooks/useCategories';
+
+// Validation schemas
+const mediaTypes: ProductMediaType[] = ['IMAGE', 'VIDEO'];
+
+const mediaTypeSchema = z.custom<ProductMediaType>((val) => typeof val === 'string' && (mediaTypes as string[]).includes(val), {
+  message: 'Media type must be IMAGE or VIDEO',
+});
+
+const productImageSchema = z.object({
+  url: z.string().url('Invalid media URL'),
+  altText: z.string().min(1, 'Alt text is required'),
+  primary: z.boolean(),
+  sortOrder: z.number().min(1),
+  mediaType: mediaTypeSchema,
+  metadata: z
+    .object({
+      width: z.number().min(0).optional(),
+      height: z.number().min(0).optional(),
+      focalPoint: z.string().optional(),
+      durationSeconds: z.number().min(0).optional(),
+      thumbnailUrl: z.string().url('Invalid thumbnail URL').optional(),
+    })
+    .partial()
+    .optional(),
+});
+
+const productPricingSchema = z.object({
+  mrp: z.number().min(0, 'MRP must be positive'),
+  sellingPrice: z.number().min(0, 'Selling price must be positive'),
+  discountPercent: z.number().min(0).max(100, 'Discount must be between 0-100'),
+  startDatetime: z.string().optional(),
+  endDatetime: z.string().optional(),
+  active: z.boolean(),
+});
+
+const productVariantSchema = z.object({
+  sku: z.string().min(1, 'SKU is required'),
+  size: z.string().optional(),
+  color: z.string().optional(),
+  style: z.string().optional(),
+  basePrice: z.number().min(0, 'Base price must be positive'),
+  weightGrams: z.number().min(0, 'Weight must be positive'),
+  dimensions: z.string().optional(),
+  images: z.array(productImageSchema).min(1, 'At least one image is required'),
+  pricing: productPricingSchema,
+});
+
+const productFormSchema = z.object({
+  name: z.string().min(1, 'Product name is required').max(255),
+  categoryLabel: z.string().min(1, 'Category label is required'),
+  description: z.string().min(1, 'Description is required'),
+  active: z.boolean(),
+  categoryIds: z.array(z.number()).min(1, 'At least one category is required'),
+  variants: z.array(productVariantSchema).min(1, 'At least one variant is required'),
+});
+
+type ProductFormData = z.infer<typeof productFormSchema>;
+
+interface ProductFormProps {
+  initialData?: ProductResponse;
+  onSubmit: (data: ProductCreateRequest) => void;
+  onCancel: () => void;
+  isLoading?: boolean;
+  error?: string | null;
+}
+
+export const ProductForm: React.FC<ProductFormProps> = ({
+  initialData,
+  onSubmit,
+  onCancel,
+  isLoading = false,
+  error = null,
+}) => {
+  const { data: categories = [] } = useCategories();
+  const [activeVariantTab, setActiveVariantTab] = useState(0);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(productFormSchema),
+    defaultValues: initialData ? {
+      name: initialData.name,
+      categoryLabel: initialData.categoryLabel,
+      description: initialData.description,
+      active: initialData.active,
+      categoryIds: initialData.categories?.map((cat: any) => cat.categoryId) || initialData.categoryIds || [],
+      variants: initialData.variants?.map(variant => ({
+        ...variant,
+        dimensions: variant.dimensions || '',
+        size: variant.size || '',
+        color: variant.color || '',
+        style: variant.style || '',
+        pricing: {
+          ...variant.pricing,
+          startDatetime: variant.pricing.startDatetime || '',
+          endDatetime: variant.pricing.endDatetime || '',
+        }
+      })) || [
+        {
+          sku: '',
+          size: '',
+          color: '',
+          style: '',
+          basePrice: 0,
+          weightGrams: 0,
+          dimensions: '',
+          images: [
+            {
+              url: '',
+              altText: '',
+              primary: true,
+              sortOrder: 1,
+              mediaType: 'IMAGE',
+              metadata: {
+                width: undefined,
+                height: undefined,
+                focalPoint: '',
+                durationSeconds: undefined,
+                thumbnailUrl: '',
+              },
+            },
+          ],
+          pricing: {
+            mrp: 0,
+            sellingPrice: 0,
+            discountPercent: 0,
+            startDatetime: '',
+            endDatetime: '',
+            active: true,
+          },
+        },
+      ],
+    } : {
+      name: '',
+      categoryLabel: '',
+      description: '',
+      active: true,
+      categoryIds: [],
+      variants: [
+        {
+          sku: '',
+          size: '',
+          color: '',
+          style: '',
+          basePrice: 0,
+          weightGrams: 0,
+          dimensions: '',
+          images: [
+            {
+              url: '',
+              altText: '',
+              primary: true,
+              sortOrder: 1,
+            },
+          ],
+          pricing: {
+            mrp: 0,
+            sellingPrice: 0,
+            discountPercent: 0,
+            startDatetime: '',
+            endDatetime: '',
+            active: true,
+          },
+        },
+      ],
+    },
+  });
+
+  const {
+    fields: variantFields,
+    append: appendVariant,
+    remove: removeVariant,
+  } = useFieldArray({
+    control,
+    name: 'variants',
+  });
+
+  const watchedVariants = watch('variants');
+  const watchedCategoryIds = watch('categoryIds');
+
+  // Reset form when initialData changes (for edit mode)
+  useEffect(() => {
+    if (initialData) {
+      console.log('🔄 Resetting form with initialData:', initialData);
+      
+      // Extract category IDs from the categories array in the API response
+      const categoryIds = initialData.categories?.map((cat: any) => cat.categoryId) || initialData.categoryIds || [];
+      
+      console.log('📋 Product categories from API:', initialData.categories);
+      console.log('📋 Extracted categoryIds:', categoryIds);
+      console.log('📂 Available categories:', categories);
+      
+      const formData = {
+        name: initialData.name,
+        categoryLabel: initialData.categoryLabel || '',
+        description: initialData.description,
+        active: initialData.active,
+        categoryIds: categoryIds,
+        variants: initialData.variants?.map(variant => ({
+          ...variant,
+          dimensions: variant.dimensions || '',
+          size: variant.size || '',
+          color: variant.color || '',
+          style: variant.style || '',
+          images: variant.images?.map(image => ({
+            ...image,
+            mediaType: image.mediaType || 'IMAGE',
+            metadata: image.metadata || {},
+          })) || [
+            {
+              url: '',
+              altText: '',
+              primary: true,
+              sortOrder: 1,
+              mediaType: 'IMAGE',
+              metadata: {},
+            },
+          ],
+          pricing: {
+            ...variant.pricing,
+            startDatetime: variant.pricing.startDatetime || '',
+            endDatetime: variant.pricing.endDatetime || '',
+          }
+        })) || []
+      };
+      
+      console.log('📝 CategoryLabel from API:', initialData.categoryLabel);
+      console.log('📝 Form data being set:', formData);
+      reset(formData);
+    }
+  }, [initialData, reset, categories]);
+
+  const handleCategoryChange = (categoryId: number, checked: boolean) => {
+    const currentIds = watchedCategoryIds || [];
+    if (checked) {
+      setValue('categoryIds', [...currentIds, categoryId]);
+    } else {
+      setValue('categoryIds', currentIds.filter(id => id !== categoryId));
+    }
+  };
+
+  const addVariant = () => {
+    appendVariant({
+      sku: '',
+      size: '',
+      color: '',
+      style: '',
+      basePrice: 0,
+      weightGrams: 0,
+      dimensions: '',
+      images: [
+        {
+          url: '',
+          altText: '',
+          primary: true,
+          sortOrder: 1,
+          mediaType: 'IMAGE',
+          metadata: {},
+        },
+      ],
+      pricing: {
+        mrp: 0,
+        sellingPrice: 0,
+        discountPercent: 0,
+        startDatetime: '',
+        endDatetime: '',
+        active: true,
+      },
+    });
+    setActiveVariantTab(variantFields.length);
+  };
+
+  const addImageToVariant = (variantIndex: number) => {
+    const currentImages = watchedVariants[variantIndex]?.images || [];
+    const newImage = {
+      url: '',
+      altText: '',
+      primary: false,
+      sortOrder: currentImages.length + 1,
+      mediaType: 'IMAGE' as const,
+      metadata: {},
+    };
+    setValue(`variants.${variantIndex}.images`, [...currentImages, newImage]);
+  };
+
+  const removeImageFromVariant = (variantIndex: number, imageIndex: number) => {
+    const currentImages = watchedVariants[variantIndex]?.images || [];
+    const updatedImages = currentImages.filter((_, index) => index !== imageIndex);
+    setValue(`variants.${variantIndex}.images`, updatedImages);
+  };
+
+  const sanitizeMetadata = (metadata?: Record<string, any>) => {
+    if (!metadata) return undefined;
+    const sanitized: Record<string, string | number | boolean> = {};
+    Object.entries(metadata).forEach(([key, value]) => {
+      if (value === undefined || value === null) {
+        return;
+      }
+      if (typeof value === 'number') {
+        if (!Number.isNaN(value)) {
+          sanitized[key] = value;
+        }
+        return;
+      }
+      if (typeof value === 'boolean') {
+        sanitized[key] = value;
+        return;
+      }
+      const trimmed = String(value).trim();
+      if (trimmed.length > 0) {
+        sanitized[key] = trimmed;
+      }
+    });
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+  };
+
+  const handleFormSubmit = (data: ProductFormData) => {
+    console.log('Form submitted with data:', data);
+    console.log('Form errors:', errors);
+
+    const sanitizedVariants = data.variants.map((variant) => ({
+      ...variant,
+      images: variant.images.map((image) => ({
+        ...image,
+        metadata: sanitizeMetadata(image.metadata || {}),
+      })),
+    }));
+
+    const payload = {
+      ...data,
+      variants: sanitizedVariants,
+    };
+
+    const submitData = initialData
+      ? ({ ...payload, productId: initialData.productId } as ProductCreateRequest)
+      : (payload as ProductCreateRequest);
+
+    console.log('Final submit data:', submitData);
+    onSubmit(submitData);
+  };
+
+  const handleFormError = (errors: any) => {
+    console.log('Form validation errors:', errors);
+  };
+
+  return (
+    <form onSubmit={handleSubmit(handleFormSubmit, handleFormError)} className="space-y-8">
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Error {initialData ? 'updating' : 'creating'} product
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{error}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Basic Product Information */}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <Input
+            label="Product Name"
+            {...register('name')}
+            error={errors.name?.message}
+            placeholder="e.g., Snake Plant"
+          />
+
+          <Input
+            label="Category Label"
+            {...register('categoryLabel')}
+            error={errors.categoryLabel?.message}
+            placeholder="e.g., Indoor Plants"
+          />
+
+          <div className="sm:col-span-2">
+            <Input
+              label="Description"
+              {...register('description')}
+              error={errors.description?.message}
+              placeholder="Detailed product description"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Categories
+            </label>
+            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3">
+              {categories.map((category) => {
+                const isChecked = watchedCategoryIds?.includes(category.categoryId) || false;
+                console.log(`🏷️ Category ${category.name} (ID: ${category.categoryId}):`, {
+                  isChecked,
+                  watchedCategoryIds,
+                  includes: watchedCategoryIds?.includes(category.categoryId)
+                });
+                
+                return (
+                  <label key={category.categoryId} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => handleCategoryChange(category.categoryId, e.target.checked)}
+                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">{category.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {errors.categoryIds && (
+              <p className="mt-1 text-sm text-red-600">{errors.categoryIds.message}</p>
+            )}
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              {...register('active')}
+              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            <label className="ml-2 text-sm text-gray-700">Active Product</label>
+          </div>
+        </div>
+      </div>
+
+      {/* Product Variants */}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Product Variants</h3>
+          <Button type="button" onClick={addVariant} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Variant
+          </Button>
+        </div>
+
+        {/* Variant Tabs */}
+        <div className="border-b border-gray-200 mb-6">
+          <nav className="-mb-px flex space-x-8">
+            {variantFields.map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => setActiveVariantTab(index)}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeVariantTab === index
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Variant {index + 1}
+                {variantFields.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeVariant(index);
+                      if (activeVariantTab >= index && activeVariantTab > 0) {
+                        setActiveVariantTab(activeVariantTab - 1);
+                      }
+                    }}
+                    className="ml-2 text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Active Variant Form */}
+        {variantFields.map((field, variantIndex) => (
+          <div
+            key={field.id}
+            className={`space-y-6 ${variantIndex === activeVariantTab ? 'block' : 'hidden'}`}
+          >
+            {/* Variant Basic Info */}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+              <Input
+                label="SKU"
+                {...register(`variants.${variantIndex}.sku`)}
+                error={errors.variants?.[variantIndex]?.sku?.message}
+                placeholder="e.g., SNK-001"
+              />
+
+              <Input
+                label="Size"
+                {...register(`variants.${variantIndex}.size`)}
+                error={errors.variants?.[variantIndex]?.size?.message}
+                placeholder="e.g., Medium"
+              />
+
+              <Input
+                label="Color"
+                {...register(`variants.${variantIndex}.color`)}
+                error={errors.variants?.[variantIndex]?.color?.message}
+                placeholder="e.g., Green"
+              />
+
+              <Input
+                label="Style"
+                {...register(`variants.${variantIndex}.style`)}
+                error={errors.variants?.[variantIndex]?.style?.message}
+                placeholder="e.g., Ceramic Pot"
+              />
+
+              <Input
+                label="Base Price"
+                type="number"
+                step="0.01"
+                {...register(`variants.${variantIndex}.basePrice`, { valueAsNumber: true })}
+                error={errors.variants?.[variantIndex]?.basePrice?.message}
+                placeholder="599.00"
+              />
+
+              <Input
+                label="Weight (grams)"
+                type="number"
+                {...register(`variants.${variantIndex}.weightGrams`, { valueAsNumber: true })}
+                error={errors.variants?.[variantIndex]?.weightGrams?.message}
+                placeholder="750"
+              />
+            </div>
+
+            <Input
+              label="Dimensions (JSON)"
+              {...register(`variants.${variantIndex}.dimensions`)}
+              error={errors.variants?.[variantIndex]?.dimensions?.message}
+              placeholder='{"height": 60, "width": 30}'
+              helperText="JSON format for dimensions"
+            />
+
+            {/* Pricing Section */}
+            <div className="border-t pt-6">
+              <h4 className="text-md font-medium text-gray-900 mb-4">Pricing</h4>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                <Input
+                  label="MRP"
+                  type="number"
+                  step="0.01"
+                  {...register(`variants.${variantIndex}.pricing.mrp`, { valueAsNumber: true })}
+                  error={errors.variants?.[variantIndex]?.pricing?.mrp?.message}
+                  placeholder="649.00"
+                />
+
+                <Input
+                  label="Selling Price"
+                  type="number"
+                  step="0.01"
+                  {...register(`variants.${variantIndex}.pricing.sellingPrice`, { valueAsNumber: true })}
+                  error={errors.variants?.[variantIndex]?.pricing?.sellingPrice?.message}
+                  placeholder="599.00"
+                />
+
+                <Input
+                  label="Discount %"
+                  type="number"
+                  {...register(`variants.${variantIndex}.pricing.discountPercent`, { valueAsNumber: true })}
+                  error={errors.variants?.[variantIndex]?.pricing?.discountPercent?.message}
+                  placeholder="8"
+                />
+
+                <Input
+                  label="Start Date"
+                  type="datetime-local"
+                  {...register(`variants.${variantIndex}.pricing.startDatetime`)}
+                  error={errors.variants?.[variantIndex]?.pricing?.startDatetime?.message}
+                />
+
+                <Input
+                  label="End Date"
+                  type="datetime-local"
+                  {...register(`variants.${variantIndex}.pricing.endDatetime`)}
+                  error={errors.variants?.[variantIndex]?.pricing?.endDatetime?.message}
+                />
+
+                <div className="flex items-center pt-6">
+                  <input
+                    type="checkbox"
+                    {...register(`variants.${variantIndex}.pricing.active`)}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <label className="ml-2 text-sm text-gray-700">Active Pricing</label>
+                </div>
+              </div>
+            </div>
+
+            {/* Images Section */}
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-md font-medium text-gray-900">Images</h4>
+                <Button
+                  type="button"
+                  onClick={() => addImageToVariant(variantIndex)}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Image
+                </Button>
+              </div>
+
+              {watchedVariants[variantIndex]?.images?.map((_, imageIndex) => {
+                const mediaTypeError = errors.variants?.[variantIndex]?.images?.[imageIndex]?.mediaType?.message;
+                const mediaTypeMessage = typeof mediaTypeError === 'string' ? mediaTypeError : undefined;
+
+                return (
+                  <div key={imageIndex} className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-4 p-4 border border-gray-200 rounded-lg">
+                    <Input
+                      label="Media URL"
+                      {...register(`variants.${variantIndex}.images.${imageIndex}.url`)}
+                      error={errors.variants?.[variantIndex]?.images?.[imageIndex]?.url?.message}
+                      placeholder="https://example.com/media.jpg"
+                    />
+
+                    <Input
+                      label="Alt Text"
+                      {...register(`variants.${variantIndex}.images.${imageIndex}.altText`)}
+                      error={errors.variants?.[variantIndex]?.images?.[imageIndex]?.altText?.message}
+                      placeholder="Plant in pot"
+                    />
+
+                    <Input
+                      label="Sort Order"
+                      type="number"
+                      {...register(`variants.${variantIndex}.images.${imageIndex}.sortOrder`, { valueAsNumber: true })}
+                      error={errors.variants?.[variantIndex]?.images?.[imageIndex]?.sortOrder?.message}
+                      placeholder="1"
+                    />
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Media Type</label>
+                      <select
+                        {...register(`variants.${variantIndex}.images.${imageIndex}.mediaType`)}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                      >
+                        <option value="IMAGE">Image</option>
+                        <option value="VIDEO">Video</option>
+                      </select>
+                      {mediaTypeMessage && (
+                        <p className="mt-1 text-sm text-red-600">{mediaTypeMessage}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-6 sm:col-span-4">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          {...register(`variants.${variantIndex}.images.${imageIndex}.primary`)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <label className="ml-2 text-sm text-gray-700">Primary</label>
+                      </div>
+
+                      {watchedVariants[variantIndex]?.images?.length > 1 && (
+                        <Button
+                          type="button"
+                          onClick={() => removeImageFromVariant(variantIndex, imageIndex)}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="sm:col-span-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      <Input
+                        label="Width"
+                        type="number"
+                        {...register(`variants.${variantIndex}.images.${imageIndex}.metadata.width`, { valueAsNumber: true })}
+                        error={errors.variants?.[variantIndex]?.images?.[imageIndex]?.metadata?.width?.message}
+                        placeholder="1200"
+                      />
+                      <Input
+                        label="Height"
+                        type="number"
+                        {...register(`variants.${variantIndex}.images.${imageIndex}.metadata.height`, { valueAsNumber: true })}
+                        error={errors.variants?.[variantIndex]?.images?.[imageIndex]?.metadata?.height?.message}
+                        placeholder="1600"
+                      />
+                      <Input
+                        label="Focal Point"
+                        {...register(`variants.${variantIndex}.images.${imageIndex}.metadata.focalPoint`)}
+                        error={errors.variants?.[variantIndex]?.images?.[imageIndex]?.metadata?.focalPoint?.message}
+                        placeholder="center"
+                      />
+                      <Input
+                        label="Duration (seconds)"
+                        type="number"
+                        {...register(`variants.${variantIndex}.images.${imageIndex}.metadata.durationSeconds`, { valueAsNumber: true })}
+                        error={errors.variants?.[variantIndex]?.images?.[imageIndex]?.metadata?.durationSeconds?.message}
+                        placeholder="48"
+                      />
+                      <Input
+                        label="Thumbnail URL"
+                        {...register(`variants.${variantIndex}.images.${imageIndex}.metadata.thumbnailUrl`)}
+                        error={errors.variants?.[variantIndex]?.images?.[imageIndex]?.metadata?.thumbnailUrl?.message}
+                        placeholder="https://example.com/thumbnail.jpg"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Form Actions */}
+      <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+          Cancel
+        </Button>
+        <Button type="submit" isLoading={isLoading} disabled={isLoading}>
+          {initialData ? 'Update Product' : 'Create Product'}
+        </Button>
+      </div>
+    </form>
+  );
+};
