@@ -4,13 +4,16 @@ import {
   AdjustmentCreateRequest, 
   Reservation, 
   ReservationReleaseRequest,
-  StockSearchRequest 
+  StockSearchRequest,
+  LowStockRequest,
+  UpdateStockConfigRequest
 } from '../types/api';
 
 export const STOCK_QUERY_KEY = 'stock';
 export const STOCK_SEARCH_QUERY_KEY = 'stockSearch';
 export const ADJUSTMENTS_QUERY_KEY = 'adjustments';
 export const ADJUSTMENT_REASONS_QUERY_KEY = 'adjustmentReasons';
+export const LOW_STOCK_QUERY_KEY = 'lowStock';
 
 // Stock Queries
 export const useStockByVariant = (variantId: number | null) => {
@@ -104,6 +107,30 @@ export const useConsumeReservation = () => {
     mutationFn: (data: ReservationReleaseRequest) => inventoryService.consumeReservation(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [STOCK_QUERY_KEY] });
+    },
+  });
+};
+
+// Low Stock Alerts
+export const useLowStock = (params: LowStockRequest | null) => {
+  return useQuery({
+    queryKey: [LOW_STOCK_QUERY_KEY, params],
+    queryFn: () => inventoryService.getLowStock(params!),
+    enabled: !!params && !!params.warehouseId,
+  });
+};
+
+// Stock Configuration (Unified - threshold and ignore)
+export const useUpdateStockConfig = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: UpdateStockConfigRequest) => 
+      inventoryService.updateStockConfig(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [STOCK_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [STOCK_SEARCH_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [LOW_STOCK_QUERY_KEY] });
     },
   });
 };

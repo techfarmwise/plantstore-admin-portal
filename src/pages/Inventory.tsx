@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
-import { Package, Plus, TrendingUp, TrendingDown, Search, History, Filter, X, ArrowUpDown } from 'lucide-react';
-import { useStockSearch, useCreateAdjustment, useAdjustmentReasons, useAdjustments } from '../hooks/useInventory';
+import { Package, Plus, TrendingUp, TrendingDown, Search, History, Filter, X, ArrowUpDown, AlertTriangle, Settings } from 'lucide-react';
+import { useStockSearch, useCreateAdjustment, useAdjustmentReasons, useAdjustments, useLowStock, useUpdateStockConfig } from '../hooks/useInventory';
 import { useWarehouses } from '../hooks/useWarehouses';
 import { useProducts } from '../hooks/useProducts';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
-import { Stock, AdjustmentCreateRequest, StockSearchItem } from '../types/api';
+import { Stock, AdjustmentCreateRequest, StockSearchItem, LowStockItem, StockStatus } from '../types/api';
 import { InventoryAdjustmentModal } from '../components/inventory/AdjustmentModal';
 import { useAuth } from '../contexts/AuthContext';
 
 export const Inventory: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'stock' | 'ledger'>('stock');
+  const [activeTab, setActiveTab] = useState<'stock' | 'lowStock' | 'ledger'>('stock');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   const [isNewAdjustmentModalOpen, setIsNewAdjustmentModalOpen] = useState(false);
@@ -37,6 +37,20 @@ export const Inventory: React.FC = () => {
     variantId: null as number | null,
     limit: 100,
   });
+
+  // Low stock filters
+  const [lowStockFilters, setLowStockFilters] = useState({
+    includeIgnored: false,
+    sortBy: 'qty_asc' as 'qty_asc' | 'qty_desc' | 'threshold_diff',
+    limit: 50,
+    offset: 0,
+  });
+
+  // Threshold configuration modal
+  const [isThresholdModalOpen, setIsThresholdModalOpen] = useState(false);
+  const [selectedLowStockItem, setSelectedLowStockItem] = useState<LowStockItem | null>(null);
+  const [thresholdValue, setThresholdValue] = useState<number>(0);
+  const [ignoreAlert, setIgnoreAlert] = useState<boolean>(false);
 
   const { data: warehouses = [], isLoading: isLoadingWarehouses } = useWarehouses();
   
@@ -78,6 +92,21 @@ export const Inventory: React.FC = () => {
   const { data: products = [] } = useProducts();
   const { data: adjustmentReasons = [] } = useAdjustmentReasons();
   const createAdjustmentMutation = useCreateAdjustment();
+
+  // Low stock data and mutations
+  const lowStockRequest = React.useMemo(() => {
+    if (!selectedWarehouseId) return null;
+    return {
+      warehouseId: selectedWarehouseId,
+      includeIgnored: lowStockFilters.includeIgnored,
+      sortBy: lowStockFilters.sortBy,
+      limit: lowStockFilters.limit,
+      offset: lowStockFilters.offset,
+    };
+  }, [selectedWarehouseId, lowStockFilters]);
+
+  const { data: lowStockData, isLoading: isLoadingLowStock } = useLowStock(lowStockRequest);
+  const updateStockConfigMutation = useUpdateStockConfig();
 
   // Set default warehouse on load
   React.useEffect(() => {
@@ -239,6 +268,24 @@ export const Inventory: React.FC = () => {
             Current Stock
           </button>
           <button
+            onClick={() => setActiveTab('lowStock')}
+            className={`
+              py-4 px-1 border-b-2 font-medium text-sm relative
+              ${activeTab === 'lowStock'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }
+            `}
+          >
+            <AlertTriangle className="inline-block h-5 w-5 mr-2" />
+            Low Stock Alerts
+            {lowStockData && lowStockData.criticalCount > 0 && (
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                {lowStockData.criticalCount}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setActiveTab('ledger')}
             className={`
               py-4 px-1 border-b-2 font-medium text-sm
@@ -354,6 +401,305 @@ export const Inventory: React.FC = () => {
         </div>
       )}
         </>
+      ) : activeTab === 'lowStock' ? (
+        /* Low Stock View */
+        <>
+          {/* Search Bar for Finding Items to Configure */}
+          <div className="mt-6 bg-white shadow rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-900">Search & Configure Thresholds</h3>
+              <span className="text-xs text-gray-500">Search by SKU, product name, or variant</span>
+            </div>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={stockFilters.search}
+                    onChange={(e) => setStockFilters({ ...stockFilters, search: e.target.value })}
+                    placeholder="Search by SKU, product name, or variant..."
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+              {stockFilters.search && (
+                <Button
+                  variant="outline"
+                  onClick={() => setStockFilters({ ...stockFilters, search: '' })}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              )}
+            </div>
+            
+            {/* Search Results for Configuration */}
+            {stockFilters.search && selectedWarehouseId && (
+              <div className="mt-4">
+                {isLoadingStock ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                  </div>
+                ) : stockItems.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-gray-500">
+                    No items found matching "{stockFilters.search}"
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-md overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                      <span className="text-xs font-medium text-gray-700">
+                        Found {stockItems.length} item(s) - Click Configure to set threshold
+                      </span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {stockItems.map((item) => (
+                        <div key={`${item.variantId}-${item.warehouseId}`} className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">{item.productName}</div>
+                            <div className="text-xs text-gray-500">
+                              SKU: {item.sku} | Available: {item.quantityAvailable} | Reserved: {item.quantityReserved}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              // Check if this item exists in low stock data (has existing config)
+                              const existingConfig = lowStockData?.items.find(
+                                (lowStockItem) => lowStockItem.variantId === item.variantId
+                              );
+                              
+                              // Create a LowStockItem-like object from StockSearchItem
+                              const configItem: LowStockItem = {
+                                inventoryId: item.variantId, // Using variantId as stockId proxy
+                                itemType: 'PRODUCT_VARIANT',
+                                productId: item.productId,
+                                productName: item.productName,
+                                productSku: item.sku,
+                                productCategory: item.tags,
+                                variantId: item.variantId,
+                                variantName: item.variantName,
+                                variantSku: item.sku,
+                                compositeId: null,
+                                compositeName: null,
+                                compositeSku: null,
+                                compositeCategory: null,
+                                compositeItemId: null,
+                                compositeItemName: null,
+                                compositeItemSku: null,
+                                currentStock: item.quantityTotal,
+                                reservedStock: item.quantityReserved,
+                                availableStock: item.quantityAvailable,
+                                minThreshold: existingConfig?.minThreshold ?? 0,
+                                stockDifference: item.quantityAvailable - (existingConfig?.minThreshold ?? 0),
+                                stockStatus: existingConfig?.stockStatus ?? 'OK',
+                                isIgnored: existingConfig?.isIgnored ?? false,
+                              };
+                              setSelectedLowStockItem(configItem);
+                              setThresholdValue(existingConfig?.minThreshold ?? 0);
+                              setIgnoreAlert(existingConfig?.isIgnored ?? false);
+                              setIsThresholdModalOpen(true);
+                            }}
+                          >
+                            <Settings className="h-4 w-4 mr-1" />
+                            Configure
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Summary Cards */}
+          {lowStockData && (
+            <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-3">
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">Critical Items</dt>
+                        <dd className="text-lg font-medium text-gray-900">{lowStockData.criticalCount}</dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-6 w-6 text-yellow-600" />
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">Warning Items</dt>
+                        <dd className="text-lg font-medium text-gray-900">{lowStockData.warningCount}</dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <Package className="h-6 w-6 text-gray-600" />
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">Total Low Stock</dt>
+                        <dd className="text-lg font-medium text-gray-900">{lowStockData.total}</dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Filters for Low Stock List */}
+          <div className="mt-6 bg-white shadow rounded-lg p-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Filter Low Stock Alerts</h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
+                <select
+                  value={lowStockFilters.sortBy}
+                  onChange={(e) => setLowStockFilters({ ...lowStockFilters, sortBy: e.target.value as any })}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                >
+                  <option value="qty_asc">Lowest Stock First</option>
+                  <option value="qty_desc">Highest Stock First</option>
+                  <option value="threshold_diff">Largest Deficit First</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={lowStockFilters.includeIgnored}
+                    onChange={(e) => setLowStockFilters({ ...lowStockFilters, includeIgnored: e.target.checked })}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Include Ignored</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Low Stock Table */}
+          {isLoadingLowStock ? (
+            <div className="flex items-center justify-center h-64 mt-6">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-600"></div>
+            </div>
+          ) : !lowStockData || lowStockData.items.length === 0 ? (
+            <div className="text-center py-12 mt-6 bg-white shadow rounded-lg">
+              <AlertTriangle className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No low stock items</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                All items are above their minimum thresholds.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-6 bg-white shadow rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Product / SKU
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Available
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Threshold
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Deficit
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {lowStockData.items.map((item) => (
+                    <tr key={item.inventoryId} className={item.isIgnored ? 'bg-gray-50' : ''}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {item.stockStatus === 'CRITICAL' ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Critical
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Warning
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900">
+                          {item.itemType === 'PRODUCT_VARIANT' ? item.productName : item.compositeName}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {item.itemType === 'PRODUCT_VARIANT' ? (
+                            <>SKU: {item.variantSku} {item.variantName && `(${item.variantName})`}</>
+                          ) : (
+                            <>SKU: {item.compositeSku}</>
+                          )}
+                        </div>
+                        {item.isIgnored && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-800 mt-1">
+                            Ignored
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.availableStock}
+                        <span className="text-gray-500 text-xs ml-1">
+                          ({item.currentStock} total, {item.reservedStock} reserved)
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.minThreshold}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`text-sm font-medium ${item.stockDifference < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                          {item.stockDifference}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedLowStockItem(item);
+                            setThresholdValue(item.minThreshold);
+                            setIgnoreAlert(item.isIgnored);
+                            setIsThresholdModalOpen(true);
+                          }}
+                        >
+                          <Settings className="h-4 w-4 mr-1" />
+                          Configure
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       ) : (
         /* Ledger View */
         <LedgerView
@@ -384,6 +730,120 @@ export const Inventory: React.FC = () => {
         error={adjustmentError}
         variantName={selectedStock ? getVariantName(selectedStock.variantId) : ''}
       />
+
+      {/* Threshold Configuration Modal */}
+      <Modal
+        isOpen={isThresholdModalOpen}
+        onClose={() => {
+          setIsThresholdModalOpen(false);
+          setSelectedLowStockItem(null);
+        }}
+        title="Configure Stock Threshold"
+        size="md"
+      >
+        {selectedLowStockItem && (
+          <div className="space-y-6">
+            {/* Item Info */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-gray-900 mb-2">
+                {selectedLowStockItem.itemType === 'PRODUCT_VARIANT' 
+                  ? selectedLowStockItem.productName 
+                  : selectedLowStockItem.compositeName}
+              </h4>
+              <p className="text-sm text-gray-600">
+                SKU: {selectedLowStockItem.itemType === 'PRODUCT_VARIANT' 
+                  ? selectedLowStockItem.variantSku 
+                  : selectedLowStockItem.compositeSku}
+              </p>
+              <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500">Available:</span>
+                  <span className="ml-1 font-medium">{selectedLowStockItem.availableStock}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Current Threshold:</span>
+                  <span className="ml-1 font-medium">{selectedLowStockItem.minThreshold}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Deficit:</span>
+                  <span className={`ml-1 font-medium ${selectedLowStockItem.stockDifference < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    {selectedLowStockItem.stockDifference}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Threshold Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Minimum Stock Threshold
+              </label>
+              <Input
+                type="number"
+                min="0"
+                value={thresholdValue}
+                onChange={(e) => setThresholdValue(Number(e.target.value))}
+                placeholder="Enter minimum threshold"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Alert will trigger when available stock falls below this value
+              </p>
+            </div>
+
+            {/* Ignore Alert Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <label className="text-sm font-medium text-gray-900">Ignore Low Stock Alerts</label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Exclude this item from low stock monitoring
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={ignoreAlert}
+                onChange={(e) => setIgnoreAlert(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsThresholdModalOpen(false);
+                  setSelectedLowStockItem(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!selectedLowStockItem || !selectedWarehouseId) return;
+                  
+                  try {
+                    // Update both threshold and ignore in single API call
+                    await updateStockConfigMutation.mutateAsync({
+                      variantId: selectedLowStockItem.variantId!,
+                      warehouseId: selectedWarehouseId,
+                      minStockThreshold: thresholdValue,
+                      ignore: ignoreAlert
+                    });
+                    
+                    setIsThresholdModalOpen(false);
+                    setSelectedLowStockItem(null);
+                  } catch (error) {
+                    console.error('Failed to update stock configuration:', error);
+                  }
+                }}
+                isLoading={updateStockConfigMutation.isPending}
+              >
+                Save Configuration
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

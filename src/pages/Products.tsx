@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Edit, Trash2, Eye, EyeOff, Package, Search, Filter, X, ArrowUpDown } from 'lucide-react';
 import { useProductSearch, useDeleteProduct, useCreateProduct, useUpdateProduct, useProduct } from '../hooks/useProducts';
-import { ProductResponse, ProductCreateRequest, ProductSearchItem } from '../types/api';
+import { ProductResponse, ProductCreateRequest, ProductUpdateRequest, ProductSearchItem } from '../types/api';
 import { useCategories } from '../hooks/useCategories';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -82,7 +82,13 @@ export const Products: React.FC = () => {
 
   const hasActiveFilters = !!(filters.categoryLabel || filters.categoryIds.length > 0 || filters.skus.length > 0 || filters.isActive !== undefined || filters.minPrice || filters.maxPrice);
 
-  const handleCreateProduct = async (data: ProductCreateRequest) => {
+  const handleCreateProduct = async (data: ProductCreateRequest | ProductUpdateRequest) => {
+    // Type guard to ensure we have a create request
+    if (!('categoryLabel' in data)) {
+      console.error('Invalid create request: missing categoryLabel');
+      setCreateError('Invalid product data');
+      return;
+    }
     console.log('Creating product with data:', data);
     setCreateError(null); // Clear previous errors
     
@@ -109,7 +115,13 @@ export const Products: React.FC = () => {
     }
   };
 
-  const handleUpdateProduct = async (data: ProductCreateRequest) => {
+  const handleUpdateProduct = async (data: ProductCreateRequest | ProductUpdateRequest) => {
+    // Type guard to ensure we have an update request
+    if (!('productId' in data)) {
+      console.error('Invalid update request: missing productId');
+      setUpdateError('Invalid product data');
+      return;
+    }
     if (!editingProductId || !editingProduct) return;
     
     console.log('Updating product with data:', data);

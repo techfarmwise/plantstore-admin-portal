@@ -7,7 +7,11 @@ import {
   Reservation,
   ReservationReleaseRequest,
   StockSearchRequest,
-  StockSearchResponse
+  StockSearchResponse,
+  LowStockRequest,
+  LowStockResponse,
+  UpdateStockConfigRequest,
+  StockConfigResponse
 } from '../types/api';
 
 class InventoryService {
@@ -69,6 +73,28 @@ class InventoryService {
   async consumeReservation(data: ReservationReleaseRequest): Promise<void> {
     console.log('✅ Consuming reservation:', data);
     return apiClient.post<void>('/inventory/reservations/consume', data);
+  }
+
+  // Low Stock Alerts
+  async getLowStock(params: LowStockRequest): Promise<LowStockResponse> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('warehouseId', params.warehouseId.toString());
+    if (params.category) queryParams.append('category', params.category);
+    if (params.includeIgnored !== undefined) queryParams.append('includeIgnored', params.includeIgnored.toString());
+    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+    
+    const url = `/inventory/low-stock?${queryParams.toString()}`;
+    
+    console.log('⚠️ Fetching low stock items:', url);
+    return apiClient.get<LowStockResponse>(url);
+  }
+
+  // Stock Configuration (Unified - threshold and ignore)
+  async updateStockConfig(data: UpdateStockConfigRequest): Promise<StockConfigResponse> {
+    console.log('🎯 Updating stock configuration:', data);
+    return apiClient.put<StockConfigResponse>('/admin/stock/config', data);
   }
 }
 

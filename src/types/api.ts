@@ -181,6 +181,34 @@ export interface ProductVariant {
   pricing: ProductPricing;
 }
 
+export interface ProductCareInfo {
+  water: string;
+  light: string;
+  temperature: string;
+  difficulty: string;
+  petFriendly: boolean;
+  petWarning?: string;
+}
+
+export interface ProductFAQ {
+  question: string;
+  answer: string;
+}
+
+export interface ProductBenefits {
+  freeDeliveryThreshold?: number;
+  replacementDays?: number;
+  supportAvailable?: boolean;
+}
+
+export interface ProductDetailMetadata {
+  careInfo?: ProductCareInfo;
+  aboutProduct?: string;
+  keyHighlights?: string[];
+  faqs?: ProductFAQ[];
+  benefits?: ProductBenefits;
+}
+
 export interface Product {
   productId?: number;
   name: string;
@@ -189,6 +217,7 @@ export interface Product {
   active: boolean;
   categoryIds: number[];
   variants: ProductVariant[];
+  detailMetadata?: ProductDetailMetadata;
 }
 
 // Product Search Types
@@ -282,6 +311,17 @@ export type ProductSearchSuggestionResponse = string[];
 
 export interface ProductCreateRequest extends Omit<Product, 'productId'> {}
 
+export interface ProductUpdateRequest {
+  productId: number;
+  name?: string;
+  description?: string;
+  active?: boolean;
+  categoryIds?: number[];
+  detailMetadata?: ProductDetailMetadata;
+  variants?: ProductVariant[];
+  variantsToDelete?: number[];
+}
+
 export interface ProductResponse extends Product {
   productId: number;
   categories?: Category[]; // Categories with full details from individual product API
@@ -303,6 +343,13 @@ export interface CompositeItemWithVariant {
   quantityRequired: number;
 }
 
+export interface CompositeDetailMetadata {
+  aboutProduct?: string;
+  keyHighlights?: string[];
+  faqs?: ProductFAQ[];
+  benefits?: ProductBenefits;
+}
+
 export interface CompositeProduct {
   compositeId?: number;
   name: string;
@@ -311,6 +358,7 @@ export interface CompositeProduct {
   fixedPrice?: number;
   active: boolean;
   items: CompositeItem[];
+  detailMetadata?: CompositeDetailMetadata;
 }
 
 export interface CompositeCreateRequest extends Omit<CompositeProduct, 'compositeId'> {}
@@ -324,6 +372,7 @@ export interface CompositeResponse {
   active: boolean;
   items: CompositeItemWithVariant[];
   pricing?: any;
+  detailMetadata?: CompositeDetailMetadata;
 }
 
 // Composite Search Types
@@ -487,6 +536,75 @@ export interface StockSearchResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+// Low Stock Types
+export type StockStatus = 'CRITICAL' | 'WARNING' | 'OK';
+
+export interface LowStockItem {
+  inventoryId: number;
+  itemType: 'PRODUCT_VARIANT' | 'COMPOSITE';
+  
+  // Product details (if product variant)
+  productId: number | null;
+  productName: string | null;
+  productSku: string | null;
+  productCategory: string[] | null;
+  
+  // Variant details
+  variantId: number | null;
+  variantName: string | null;
+  variantSku: string | null;
+  
+  // Composite details (if composite)
+  compositeId: number | null;
+  compositeName: string | null;
+  compositeSku: string | null;
+  compositeCategory: string[] | null;
+  compositeItemId: number | null;
+  compositeItemName: string | null;
+  compositeItemSku: string | null;
+  
+  // Stock information
+  currentStock: number;
+  reservedStock: number;
+  availableStock: number;
+  minThreshold: number;
+  stockDifference: number;
+  stockStatus: StockStatus;
+  isIgnored: boolean;
+}
+
+export interface LowStockResponse {
+  total: number;
+  criticalCount: number;
+  warningCount: number;
+  items: LowStockItem[];
+}
+
+export interface LowStockRequest {
+  warehouseId: number;
+  category?: string;
+  includeIgnored?: boolean;
+  sortBy?: 'qty_asc' | 'qty_desc' | 'threshold_diff';
+  limit?: number;
+  offset?: number;
+}
+
+// Stock Configuration Types (Unified API)
+export interface UpdateStockConfigRequest {
+  variantId: number;
+  warehouseId: number;
+  minStockThreshold?: number;
+  ignore?: boolean;
+}
+
+export interface StockConfigResponse {
+  variantId: number;
+  warehouseId: number;
+  minStockThreshold: number | null;
+  ignore: boolean | null;
+  message: string;
 }
 
 // API Error Types
